@@ -8,7 +8,7 @@
             "type": "node",
             "request": "launch",
             "name": "Launch nos",
-            "program": "${workspaceFolder}/nos.js"
+            "program": "${workspaceFolder}/nosfon"
         }
     ]
 }

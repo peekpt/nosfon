@@ -1,0 +1,101 @@
+#!/usr/bin/env node
+
+
+var argv = require('optimist')
+    .usage('Login into a fon account.\nUsage: $0 -u <username> -p <password>')
+    .demand(['u', 'p'])
+    .alias('u', 'user')
+    .alias('p', 'pass')
+    .describe('u', 'fon email')
+    .describe('p', 'fon password')
+    .argv;
+
+
+var http = require('follow-redirects').http;
+var https = require('follow-redirects').https;
+var request = require('request');
+
+var chunk = ''
+
+http.get('http://sapo.pt', function (res, err) {
+    console.log('>requesting captive portal...' + res.statusCode);
+    chunk = '';
+    res.on('data', function (d) {
+        chunk += d; //collecting the body html
+    });
+    res.on('end', function () {
+
+        console.log('>Parsing html to find the url to the fon login page...');
+        var match = chunk.toString().match(/https:\/\/nos2\.portal\.fon\.com\/jcp\?res=hsp-notyet.*NASID=..-..-..-..-..-../);
+
+        if (match) {
+            console.log('-found it!')
+            var fonUrl = match[0].split(/&amp;/).join('&');
+
+            chunk = ''
+            var url = require('url');
+            var u = url.parse(fonUrl, true);
+
+            https.get(u, function (res) {
+
+                console.log('>opening fon Login Page...' + res.statusCode)
+                res.on('data', function (d) {
+                    chunk += d;
+                });
+                res.on('end', function () {
+                    console.log('>parsing the form url');
+
+                    match = chunk.toString().match(/https:\/\/nos2\.portal\.fon\.com\/jcp\?res=hsp-login.*MAC=..-..-..-..-..-../);
+                    if (match) {
+
+                        console.log('-found it!')
+                        var action = match[0].split('&amp;').join('&')
+                        console.log('>performing the login...');
+                        request.post({
+                            headers: {
+                                'User-Agent': 'Super Agent/0.0.1',
+                                'Content-Type': 'application/x-www-form-urlencoded'
+                            },
+                            url: action,
+                            followRedirect: true,
+                            followAllRedirects: true,
+                            qs: {
+                                UserName: argv.u,
+                                Password: argv.p
+                            }
+                        },
+                            function (err, httpResponse, body) {
+                                if (err) console.error(error);
+                                if (httpResponse.statusCode == 200)
+                                    if (httpResponse.body.match(/hsp-login/)) {
+                                        console.error('\n\nWRONG CREDENTIALS, check your username and password');
+
+                                    } else {
+                                        console.log('\n\nSUCCESS, you are logged in!')
+
+                                    }
+
+                            })
+
+
+
+                    }
+
+                })
+            }).on('error', function (e) {
+                console.log(e);
+
+            })
+
+
+        } else {
+            console.log('You are already Logged In or you aren\'t on a Fon Network')
+        }
+
+
+    })
+
+}).on('error', (e) => {
+    console.error(e);
+});
+
